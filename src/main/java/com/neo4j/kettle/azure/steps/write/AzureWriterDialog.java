@@ -67,7 +67,7 @@ public class AzureWriterDialog extends BaseStepDialog implements StepDialogInter
     formLayout.marginHeight = Const.FORM_MARGIN;
 
     shell.setLayout( formLayout );
-    shell.setText( "AzureWrite" );
+    shell.setText( "AzureListener" );
 
     int middle = props.getMiddlePct();
     int margin = Const.MARGIN;

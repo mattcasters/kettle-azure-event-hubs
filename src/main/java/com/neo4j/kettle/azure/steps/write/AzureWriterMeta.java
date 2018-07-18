@@ -27,7 +27,7 @@ import java.util.List;
   id = "AzureWriter",
   name = "Microsoft Azure Event Hubs Writer",
   description = "Write data to a Microsoft Azure Event Hub",
-  image = "azure.svg",
+  image = "azure_writer.svg",
   categoryDescription = "Streaming"
 )
 public class AzureWriterMeta extends BaseStepMeta implements StepMetaInterface {

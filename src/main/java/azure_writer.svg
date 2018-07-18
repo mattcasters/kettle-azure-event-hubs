@@ -12,7 +12,7 @@
    width="2500"
    version="1.1"
    id="svg4"
-   sodipodi:docname="azure.svg"
+   sodipodi:docname="azure_writer.svg"
    inkscape:version="0.92.2 (5c3e80d, 2017-08-06)">
   <metadata
      id="metadata10">
@@ -22,6 +22,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -52,4 +53,30 @@
      id="path2"
      inkscape:connector-curvature="0"
      style="fill:#0072c6;stroke-width:0.92735052" />
+  <g
+     transform="matrix(4.0392808,0,0,4.0392808,-6.1734537,-6.5991548)"
+     id="Layer_4">
+    <rect
+       style="fill:#3d6380"
+       x="4.2020001"
+       y="10.417"
+       width="7.4809999"
+       height="1.2359999"
+       id="rect43" />
+    <rect
+       style="fill:#3d6380"
+       x="10.448"
+       y="4.171"
+       width="1.235"
+       height="7.4819999"
+       id="rect45" />
+    <rect
+       style="fill:#3d6380"
+       x="1.095"
+       y="6.3940001"
+       transform="matrix(-0.707,-0.7072,0.7072,-0.707,7.0628,16.9487)"
+       width="11.894"
+       height="1.234"
+       id="rect47" />
+  </g>
 </svg>

@@ -8,6 +8,7 @@ import com.microsoft.azure.eventhubs.EventHubClient;
 import com.microsoft.azure.eventprocessorhost.EventProcessorHost;
 import com.microsoft.azure.eventprocessorhost.EventProcessorOptions;
 import com.microsoft.azure.eventprocessorhost.ExceptionReceivedEventArgs;
+import org.apache.commons.lang.StringUtils;
 
 import java.nio.charset.Charset;
 import java.util.concurrent.ExecutorService;
