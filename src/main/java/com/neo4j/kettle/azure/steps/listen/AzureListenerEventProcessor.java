@@ -5,6 +5,7 @@ import com.microsoft.azure.eventprocessorhost.CloseReason;
 import com.microsoft.azure.eventprocessorhost.IEventProcessor;
 import com.microsoft.azure.eventprocessorhost.PartitionContext;
 import org.apache.commons.lang.StringUtils;
+import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.row.RowDataUtil;
 
 import java.sql.Timestamp;
@@ -68,8 +69,8 @@ public class AzureListenerEventProcessor implements IEventProcessor {
       // you of the chance to process any remaining events in the batch.
       //
 
-      // TODO: collect rows in a batch and send them to a sub-transformation
-      //
+      azureStep.incrementLinesInput();
+
       try {
 
         Object[] row = RowDataUtil.allocateRowData(azureData.outputRowMeta.size());
@@ -96,7 +97,7 @@ public class AzureListenerEventProcessor implements IEventProcessor {
         // Sequence number: Integer
         //
         if ( StringUtils.isNotEmpty(azureData.sequenceNumberField)) {
-          row[ index++ ] = Long.valueOf( data.getSystemProperties().getSequenceNumber() );
+          row[ index++ ] = data.getSystemProperties().getSequenceNumber();
         }
 
         // Host: String
@@ -112,7 +113,13 @@ public class AzureListenerEventProcessor implements IEventProcessor {
           row[ index++ ] = Timestamp.from( enqueuedTime );
         }
 
-        azureStep.putRow( azureData.outputRowMeta,  row);
+        if (azureData.stt) {
+          azureData.sttRowProducer.putRow( azureData.outputRowMeta, row );
+        } else {
+          // Just pass the row along, row safety is not of primary concern
+          //
+          azureStep.putRow( azureData.outputRowMeta, row );
+        }
 
         if (azureStep.isDebug()) {
           azureStep.logDebug("Event read and passed for PartitionId (" + context.getPartitionId() + "," + data.getSystemProperties().getOffset() + "," +
@@ -133,6 +140,25 @@ public class AzureListenerEventProcessor implements IEventProcessor {
           if (azureStep.isDebug()) {
             azureStep.logDebug( "Partition " + context.getPartitionId() + " checkpointing at " +
               data.getSystemProperties().getOffset() + "," + data.getSystemProperties().getSequenceNumber() );
+          }
+
+          if (azureData.stt) {
+
+            if (azureStep.isDetailed()) {
+              azureStep.logDetailed( "Processing the rows sent to the batch transformation at event count " + checkpointBatchingCount );
+            }
+            azureData.sttExecutor.oneIteration();
+
+            if ( azureData.sttExecutor.isStopped() || azureData.sttExecutor.getErrors() > 0 ) {
+              // Something went wrong, bail out, don't do checkpoint
+              //
+              azureData.sttTrans.stopAll();
+              azureStep.setErrors(1);
+              azureStep.setStopped( true );
+              azureStep.stopAll();
+
+              throw new KettleException( "Error in batch transformation, halting");
+            }
           }
 
           // Checkpoints are created asynchronously. It is important to wait for the result of checkpointing

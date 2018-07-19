@@ -4,6 +4,10 @@ import com.microsoft.azure.eventhubs.ConnectionStringBuilder;
 import com.microsoft.azure.eventhubs.EventData;
 import com.microsoft.azure.eventhubs.EventHubClient;
 import org.pentaho.di.core.row.RowMetaInterface;
+import org.pentaho.di.trans.RowProducer;
+import org.pentaho.di.trans.SingleThreadedTransExecutor;
+import org.pentaho.di.trans.Trans;
+import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.step.BaseStepData;
 import org.pentaho.di.trans.step.StepDataInterface;
 
@@ -26,4 +30,10 @@ public class AzureListenerData extends BaseStepData implements StepDataInterface
   public String sequenceNumberField;
   public String hostField;
   public String enquedTimeField;
+
+  public TransMeta sttTransMeta;
+  public Trans sttTrans;
+  public SingleThreadedTransExecutor sttExecutor;
+  public boolean stt = false;
+  public RowProducer sttRowProducer;
 }

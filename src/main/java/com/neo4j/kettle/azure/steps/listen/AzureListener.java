@@ -18,9 +18,13 @@ import org.pentaho.di.core.Const;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.exception.KettleStepException;
 import org.pentaho.di.core.row.RowMeta;
+import org.pentaho.di.core.row.RowMetaInterface;
+import org.pentaho.di.trans.RowProducer;
+import org.pentaho.di.trans.SingleThreadedTransExecutor;
 import org.pentaho.di.trans.Trans;
 import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.step.BaseStep;
+import org.pentaho.di.trans.step.RowAdapter;
 import org.pentaho.di.trans.step.StepDataInterface;
 import org.pentaho.di.trans.step.StepInterface;
 import org.pentaho.di.trans.step.StepMeta;
@@ -74,7 +78,7 @@ public class AzureListener extends BaseStep implements StepInterface {
     // Get the output fields starting from nothing
     //
     data.outputRowMeta = new RowMeta();
-    meta.getFields( data.outputRowMeta, getStepname(), null, getStepMeta(), this, repository, metaStore );
+    meta.getRegularRowMeta( data.outputRowMeta, this );
 
     data.outputField = environmentSubstitute( meta.getOutputField() );
     data.partitionIdField = environmentSubstitute( meta.getPartitionIdField());
@@ -82,8 +86,6 @@ public class AzureListener extends BaseStep implements StepInterface {
     data.sequenceNumberField = environmentSubstitute( meta.getSequenceNumberField());
     data.hostField = environmentSubstitute( meta.getHostField());
     data.enquedTimeField = environmentSubstitute( meta.getEnquedTimeField());
-
-    log.logDetailed("Creating connection string");
 
     String namespace = environmentSubstitute( meta.getNamespace() );
     String eventHubName = environmentSubstitute(meta.getEventHubName());
@@ -94,6 +96,52 @@ public class AzureListener extends BaseStep implements StepInterface {
     String storageContainerName = environmentSubstitute(meta.getStorageContainerName());
     String storageConnectionString = environmentSubstitute(meta.getStorageConnectionString());
 
+    String batchTransformationFile = environmentSubstitute( meta.getBatchTransformation() );
+    String batchInputStep = environmentSubstitute( meta.getBatchInputStep() );
+    String batchOutputStep = environmentSubstitute( meta.getBatchOutputStep() );
+
+    // Create a single threaded transformation
+    //
+    if (StringUtils.isNotEmpty( batchTransformationFile ) && StringUtils.isNotEmpty( batchInputStep )) {
+      logBasic( "Passing rows to a batching transformation running single threaded : " +batchTransformationFile);
+      data.stt = true;
+      data.sttTransMeta = meta.loadBatchTransMeta( meta, repository, metaStore, this );
+      data.sttTransMeta.setTransformationType( TransMeta.TransformationType.SingleThreaded );
+      data.sttTrans = new Trans( data.sttTransMeta, this );
+      data.sttTrans.setParent( getTrans() );
+
+      data.sttTrans.prepareExecution( getTrans().getArguments() );
+
+      data.sttRowProducer = data.sttTrans.addRowProducer( batchInputStep, 0 );
+
+      if (StringUtils.isNotEmpty( batchOutputStep )) {
+        StepInterface outputStep = data.sttTrans.findRunThread( batchOutputStep );
+        if (outputStep==null) {
+          throw new KettleStepException( "Unable to find output step '"+batchOutputStep+"'in batch transformation" );
+        }
+        outputStep.addRowListener( new RowAdapter() {
+          @Override public void rowWrittenEvent( RowMetaInterface rowMeta, Object[] row ) throws KettleStepException {
+            AzureListener.this.putRow(rowMeta, row);
+          }
+        } );
+      }
+
+      data.sttTrans.startThreads();
+
+      data.sttExecutor = new SingleThreadedTransExecutor( data.sttTrans );
+
+      boolean ok = data.sttExecutor.init();
+      if (!ok) {
+        logError("Initializing batch transformation failed");
+        stopAll();
+        setErrors( 1 );
+        return false;
+      }
+    } else {
+      data.stt = false;
+    }
+
+    log.logDetailed("Creating connection string");
     data.connectionStringBuilder = new ConnectionStringBuilder()
         .setNamespaceName(namespace)
         .setEventHubName(eventHubName)

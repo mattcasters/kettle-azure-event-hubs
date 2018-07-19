@@ -2,6 +2,7 @@ package com.neo4j.kettle.azure.steps.listen;
 
 import org.apache.commons.lang.StringUtils;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.custom.CTabFolder;
 import org.eclipse.swt.events.ModifyListener;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
@@ -28,7 +29,7 @@ import org.pentaho.di.ui.trans.step.BaseStepDialog;
 public class AzureListenerDialog extends BaseStepDialog implements StepDialogInterface {
 
   private static Class<?> PKG = AzureListenerMeta.class; // for i18n purposes, needed by Translator2!!
-  
+
   private Text wStepname;
   private TextVar wNamespace;
   private TextVar wEventHub;
@@ -48,6 +49,9 @@ public class AzureListenerDialog extends BaseStepDialog implements StepDialogInt
   private TextVar wStorageConnectionString;
   private TextVar wStorageContainerName;
 
+  private TextVar wBatchTransformation;
+  private TextVar wBatchInput;
+  private TextVar wBatchOutput;
   
   private AzureListenerMeta input;
 
@@ -395,6 +399,69 @@ public class AzureListenerDialog extends BaseStepDialog implements StepDialogInt
     wEnquedTimeField.setLayoutData( fdEnquedTimeField );
     lastControl = wEnquedTimeField;
 
+    Label wlSeparator1 = new Label( shell, SWT.SEPARATOR | SWT.HORIZONTAL );
+    props.setLook( wlSeparator1 );
+    FormData fdlSeparator1 = new FormData();
+    fdlSeparator1.left = new FormAttachment( 0, margin );
+    fdlSeparator1.right = new FormAttachment( 100, -margin );
+    fdlSeparator1.top = new FormAttachment( lastControl, 4*margin );
+    wlSeparator1.setLayoutData( fdlSeparator1 );
+    lastControl = wlSeparator1;
+
+    Label wlBatchTransformation = new Label( shell, SWT.RIGHT );
+    wlBatchTransformation.setText( "Batch transformation" );
+    props.setLook( wlBatchTransformation );
+    FormData fdlBatchTransformation = new FormData();
+    fdlBatchTransformation.left = new FormAttachment( 0, 0 );
+    fdlBatchTransformation.right = new FormAttachment( middle, -margin );
+    fdlBatchTransformation.top = new FormAttachment( lastControl, 4*margin );
+    wlBatchTransformation.setLayoutData( fdlBatchTransformation );
+    wBatchTransformation = new TextVar( transMeta, shell, SWT.SINGLE | SWT.LEFT | SWT.BORDER );
+    props.setLook( wBatchTransformation );
+    wBatchTransformation.addModifyListener( lsMod );
+    FormData fdBatchTransformation = new FormData();
+    fdBatchTransformation.left = new FormAttachment( middle, 0 );
+    fdBatchTransformation.right = new FormAttachment( 100, 0 );
+    fdBatchTransformation.top = new FormAttachment( wlBatchTransformation, 0, SWT.CENTER );
+    wBatchTransformation.setLayoutData( fdBatchTransformation );
+    lastControl = wBatchTransformation;
+
+    Label wlBatchInput = new Label( shell, SWT.RIGHT );
+    wlBatchInput.setText( "transformation input step" );
+    props.setLook( wlBatchInput );
+    FormData fdlBatchInput = new FormData();
+    fdlBatchInput.left = new FormAttachment( 0, 0 );
+    fdlBatchInput.right = new FormAttachment( middle, -margin );
+    fdlBatchInput.top = new FormAttachment( lastControl, 2*margin );
+    wlBatchInput.setLayoutData( fdlBatchInput );
+    wBatchInput = new TextVar( transMeta, shell, SWT.SINGLE | SWT.LEFT | SWT.BORDER );
+    props.setLook( wBatchInput );
+    wBatchInput.addModifyListener( lsMod );
+    FormData fdBatchInput = new FormData();
+    fdBatchInput.left = new FormAttachment( middle, 0 );
+    fdBatchInput.right = new FormAttachment( 100, 0 );
+    fdBatchInput.top = new FormAttachment( wlBatchInput, 0, SWT.CENTER );
+    wBatchInput.setLayoutData( fdBatchInput );
+    lastControl = wBatchInput;
+
+    Label wlBatchOutput = new Label( shell, SWT.RIGHT );
+    wlBatchOutput.setText( "transformation output step" );
+    props.setLook( wlBatchOutput );
+    FormData fdlBatchOutput = new FormData();
+    fdlBatchOutput.left = new FormAttachment( 0, 0 );
+    fdlBatchOutput.right = new FormAttachment( middle, -margin );
+    fdlBatchOutput.top = new FormAttachment( lastControl, 2*margin );
+    wlBatchOutput.setLayoutData( fdlBatchOutput );
+    wBatchOutput = new TextVar( transMeta, shell, SWT.SINGLE | SWT.LEFT | SWT.BORDER );
+    props.setLook( wBatchOutput );
+    wBatchOutput.addModifyListener( lsMod );
+    FormData fdBatchOutput = new FormData();
+    fdBatchOutput.left = new FormAttachment( middle, 0 );
+    fdBatchOutput.right = new FormAttachment( 100, 0 );
+    fdBatchOutput.top = new FormAttachment( wlBatchOutput, 0, SWT.CENTER );
+    wBatchOutput.setLayoutData( fdBatchOutput );
+    lastControl = wBatchOutput;
+
     // Some buttons
     wOK = new Button( shell, SWT.PUSH );
     wOK.setText( BaseMessages.getString( PKG, "System.Button.OK" ) );
@@ -437,6 +504,9 @@ public class AzureListenerDialog extends BaseStepDialog implements StepDialogInt
     wHostField.addSelectionListener( lsDef );
     wEnquedTimeField.addSelectionListener( lsDef );
 
+    wBatchTransformation.addSelectionListener( lsDef );
+    wBatchInput.addSelectionListener( lsDef );
+    wBatchOutput.addSelectionListener( lsDef );
 
     // Detect X or ALT-F4 or something that kills this window...
     shell.addShellListener( new ShellAdapter() {
@@ -485,6 +555,10 @@ public class AzureListenerDialog extends BaseStepDialog implements StepDialogInt
     wHostField.setText(Const.NVL(input.getHostField(), ""));
     wSequenceNumberField.setText(Const.NVL(input.getSequenceNumberField(), ""));
     wEnquedTimeField.setText(Const.NVL(input.getEnquedTimeField(), ""));
+
+    wBatchTransformation.setText(Const.NVL(input.getBatchTransformation(), ""));
+    wBatchInput.setText(Const.NVL(input.getBatchInputStep(), ""));
+    wBatchOutput.setText(Const.NVL(input.getBatchOutputStep(), ""));
   }
 
   private void ok() {
@@ -508,6 +582,10 @@ public class AzureListenerDialog extends BaseStepDialog implements StepDialogInt
     input.setSequenceNumberField( wSequenceNumberField.getText() );
     input.setHostField( wHostField.getText() );
     input.setEnquedTimeField( wEnquedTimeField.getText() );
+
+    input.setBatchTransformation( wBatchTransformation.getText() );
+    input.setBatchInputStep( wBatchInput.getText() );
+    input.setBatchOutputStep( wBatchOutput.getText() );
 
     dispose();
   }

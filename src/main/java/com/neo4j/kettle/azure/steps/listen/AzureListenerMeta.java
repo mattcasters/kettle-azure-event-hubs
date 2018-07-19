@@ -9,7 +9,6 @@ import org.pentaho.di.core.exception.KettleStepException;
 import org.pentaho.di.core.exception.KettleXMLException;
 import org.pentaho.di.core.row.RowMetaInterface;
 import org.pentaho.di.core.row.ValueMetaInterface;
-import org.pentaho.di.core.row.value.ValueMetaDate;
 import org.pentaho.di.core.row.value.ValueMetaInteger;
 import org.pentaho.di.core.row.value.ValueMetaString;
 import org.pentaho.di.core.row.value.ValueMetaTimestamp;
@@ -50,6 +49,9 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
   public static final String SEQUENCE_NUMBER_FIELD = "sequence_number_field";
   public static final String HOST_FIELD = "host_field";
   public static final String ENQUED_TIME_FIELD = "enqued_time_field";
+  public static final String BATCH_TRANSFORMATION = "batch_transformation";
+  public static final String BATCH_INPUT_STEP = "batch_input_step";
+  public static final String BATCH_OUTPUT_STEP = "batch_output_step";
 
   public static final String CONSUMER_GROUP_NAME = "consumer_group_name";
   public static final String EVENT_HUB_CONNECTION_STRING = "event_hub_connection_string";
@@ -75,6 +77,10 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
   private String sequenceNumberField;
   private String hostField;
   private String enquedTimeField;
+
+  private String batchTransformation;
+  private String batchInputStep;
+  private String batchOutputStep;
 
   public AzureListenerMeta() {
     super();
@@ -105,6 +111,24 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
   @Override public void getFields( RowMetaInterface rowMeta, String name, RowMetaInterface[] info, StepMeta nextStep, VariableSpace space,
                                    Repository repository, IMetaStore metaStore ) throws KettleStepException {
 
+    if (StringUtils.isNotEmpty( batchTransformation ) && StringUtils.isNotEmpty( batchInputStep )) {
+      // Load the transformation, get the step output fields...
+      //
+      try {
+        TransMeta batchTransMeta = loadBatchTransMeta( this, repository, metaStore, space );
+        RowMetaInterface stepFields = batchTransMeta.getStepFields( space.environmentSubstitute( batchOutputStep ) );
+        rowMeta.clear();
+        rowMeta.addRowMeta( stepFields );
+        return;
+      } catch(Exception e) {
+        throw new KettleStepException( "Unable to get fields from batch transformation step "+batchOutputStep, e );
+      }
+    }
+
+    getRegularRowMeta(rowMeta, space);
+  }
+
+  public void getRegularRowMeta( RowMetaInterface rowMeta, VariableSpace space ) {
     // Output message field name
     //
     String outputFieldName = space.environmentSubstitute( outputField );
@@ -172,6 +196,10 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
     xml.append( XMLHandler.addTagValue( EVENT_HUB_CONNECTION_STRING, eventHubConnectionString ) );
     xml.append( XMLHandler.addTagValue( STORAGE_CONNECTION_STRING, storageConnectionString ) );
     xml.append( XMLHandler.addTagValue( STORAGE_CONTAINER_NAME, storageContainerName) );
+    xml.append( XMLHandler.addTagValue( BATCH_TRANSFORMATION, batchTransformation) );
+    xml.append( XMLHandler.addTagValue( BATCH_INPUT_STEP, batchInputStep) );
+    xml.append( XMLHandler.addTagValue( BATCH_OUTPUT_STEP, batchOutputStep) );
+
     return xml.toString();
   }
 
@@ -192,6 +220,9 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
     eventHubConnectionString = XMLHandler.getTagValue( stepnode, EVENT_HUB_CONNECTION_STRING);
     storageConnectionString = XMLHandler.getTagValue( stepnode, STORAGE_CONNECTION_STRING);
     storageContainerName = XMLHandler.getTagValue( stepnode, STORAGE_CONTAINER_NAME );
+    batchTransformation = XMLHandler.getTagValue( stepnode, BATCH_TRANSFORMATION );
+    batchInputStep = XMLHandler.getTagValue( stepnode, BATCH_INPUT_STEP );
+    batchOutputStep = XMLHandler.getTagValue( stepnode, BATCH_OUTPUT_STEP);
     super.loadXML( stepnode, databases, metaStore );
   }
 
@@ -212,6 +243,9 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
     rep.saveStepAttribute( id_transformation, id_step, EVENT_HUB_CONNECTION_STRING, eventHubConnectionString);
     rep.saveStepAttribute( id_transformation, id_step, STORAGE_CONNECTION_STRING, storageConnectionString);
     rep.saveStepAttribute( id_transformation, id_step, STORAGE_CONTAINER_NAME, storageContainerName );
+    rep.saveStepAttribute( id_transformation, id_step, BATCH_TRANSFORMATION, batchTransformation);
+    rep.saveStepAttribute( id_transformation, id_step, BATCH_INPUT_STEP, batchInputStep);
+    rep.saveStepAttribute( id_transformation, id_step, BATCH_OUTPUT_STEP, batchOutputStep);
   }
 
   @Override public void readRep( Repository rep, IMetaStore metaStore, ObjectId id_step, List<DatabaseMeta> databases ) throws KettleException {
@@ -231,6 +265,54 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
     eventHubConnectionString = rep.getStepAttributeString( id_step, EVENT_HUB_CONNECTION_STRING);
     storageConnectionString = rep.getStepAttributeString( id_step, STORAGE_CONNECTION_STRING);
     storageContainerName = rep.getStepAttributeString( id_step, STORAGE_CONTAINER_NAME );
+    batchTransformation = rep.getStepAttributeString( id_step, BATCH_TRANSFORMATION );
+    batchInputStep = rep.getStepAttributeString( id_step, BATCH_INPUT_STEP );
+    batchOutputStep = rep.getStepAttributeString( id_step, BATCH_OUTPUT_STEP);
+  }
+
+  public static final synchronized TransMeta loadBatchTransMeta(
+    AzureListenerMeta azureListenerMeta, Repository rep, IMetaStore metaStore, VariableSpace space ) throws KettleException {
+    TransMeta batchTransMeta = null;
+
+    String realFilename = space.environmentSubstitute( azureListenerMeta.getBatchTransformation() );
+    try {
+      // OK, load the meta-data from file...
+      //
+      // Don't set internal variables: they belong to the parent thread!
+      //
+      batchTransMeta = new TransMeta( realFilename, false );
+      batchTransMeta.getLogChannel().logDetailed( "Batch transformation was loaded from XML '" + realFilename + "'" );
+    } catch ( Exception e ) {
+      throw new KettleException( "Unable to load batch transformation", e );
+    }
+
+    // Pass some important information to the mapping transformation metadata:
+    //
+    batchTransMeta.copyVariablesFrom( space );
+    batchTransMeta.setRepository( rep );
+    batchTransMeta.setMetaStore( metaStore );
+    batchTransMeta.setFilename( batchTransMeta.getFilename() );
+
+    return batchTransMeta;
+  }
+
+  /**
+   * @return The objects referenced in the step, like a mapping, a transformation, a job, ...
+   */
+  public String[] getReferencedObjectDescriptions() {
+    return new String[] { "Batch transformation", };
+  }
+
+  private boolean isTransformationDefined() {
+    return StringUtils.isNotEmpty( batchTransformation ) && StringUtils.isNotEmpty( batchInputStep );
+  }
+
+  public boolean[] isReferencedObjectEnabled() {
+    return new boolean[] { isTransformationDefined(), };
+  }
+
+  public Object loadReferencedObject( int index, Repository rep, IMetaStore metaStore, VariableSpace space ) throws KettleException {
+    return loadBatchTransMeta( this, rep, metaStore, space );
   }
 
   public String getNamespace() {
@@ -359,5 +441,29 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
 
   public void setEnquedTimeField( String enquedTimeField ) {
     this.enquedTimeField = enquedTimeField;
+  }
+
+  public String getBatchTransformation() {
+    return batchTransformation;
+  }
+
+  public void setBatchTransformation( String batchTransformation ) {
+    this.batchTransformation = batchTransformation;
+  }
+
+  public String getBatchInputStep() {
+    return batchInputStep;
+  }
+
+  public void setBatchInputStep( String batchInputStep ) {
+    this.batchInputStep = batchInputStep;
+  }
+
+  public String getBatchOutputStep() {
+    return batchOutputStep;
+  }
+
+  public void setBatchOutputStep( String batchOutputStep ) {
+    this.batchOutputStep = batchOutputStep;
   }
 }
