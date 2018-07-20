@@ -36,4 +36,5 @@ public class AzureListenerData extends BaseStepData implements StepDataInterface
   public SingleThreadedTransExecutor sttExecutor;
   public boolean stt = false;
   public RowProducer sttRowProducer;
+  public long sttMaxWaitTime;
 }

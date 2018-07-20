@@ -52,7 +52,8 @@ public class AzureListenerDialog extends BaseStepDialog implements StepDialogInt
   private TextVar wBatchTransformation;
   private TextVar wBatchInput;
   private TextVar wBatchOutput;
-  
+  private TextVar wMaxWaitTime;
+
   private AzureListenerMeta input;
 
   public AzureListenerDialog( Shell parent, Object inputMetadata, TransMeta transMeta, String stepname ) {
@@ -462,6 +463,24 @@ public class AzureListenerDialog extends BaseStepDialog implements StepDialogInt
     wBatchOutput.setLayoutData( fdBatchOutput );
     lastControl = wBatchOutput;
 
+    Label wlMaxWaitTime = new Label( shell, SWT.RIGHT );
+    wlMaxWaitTime.setText( "Maximum wait time (ms)" );
+    props.setLook( wlMaxWaitTime );
+    FormData fdlMaxWaitTime = new FormData();
+    fdlMaxWaitTime.left = new FormAttachment( 0, 0 );
+    fdlMaxWaitTime.right = new FormAttachment( middle, -margin );
+    fdlMaxWaitTime.top = new FormAttachment( lastControl, 2*margin );
+    wlMaxWaitTime.setLayoutData( fdlMaxWaitTime );
+    wMaxWaitTime = new TextVar( transMeta, shell, SWT.SINGLE | SWT.LEFT | SWT.BORDER );
+    props.setLook( wMaxWaitTime );
+    wMaxWaitTime.addModifyListener( lsMod );
+    FormData fdMaxWaitTime = new FormData();
+    fdMaxWaitTime.left = new FormAttachment( middle, 0 );
+    fdMaxWaitTime.right = new FormAttachment( 100, 0 );
+    fdMaxWaitTime.top = new FormAttachment( wlMaxWaitTime, 0, SWT.CENTER );
+    wMaxWaitTime.setLayoutData( fdMaxWaitTime );
+    lastControl = wMaxWaitTime;
+
     // Some buttons
     wOK = new Button( shell, SWT.PUSH );
     wOK.setText( BaseMessages.getString( PKG, "System.Button.OK" ) );
@@ -507,6 +526,7 @@ public class AzureListenerDialog extends BaseStepDialog implements StepDialogInt
     wBatchTransformation.addSelectionListener( lsDef );
     wBatchInput.addSelectionListener( lsDef );
     wBatchOutput.addSelectionListener( lsDef );
+    wMaxWaitTime.addSelectionListener( lsDef );
 
     // Detect X or ALT-F4 or something that kills this window...
     shell.addShellListener( new ShellAdapter() {
@@ -559,6 +579,7 @@ public class AzureListenerDialog extends BaseStepDialog implements StepDialogInt
     wBatchTransformation.setText(Const.NVL(input.getBatchTransformation(), ""));
     wBatchInput.setText(Const.NVL(input.getBatchInputStep(), ""));
     wBatchOutput.setText(Const.NVL(input.getBatchOutputStep(), ""));
+    wMaxWaitTime.setText(Const.NVL(input.getBatchMaxWaitTime(), ""));
   }
 
   private void ok() {
@@ -586,6 +607,7 @@ public class AzureListenerDialog extends BaseStepDialog implements StepDialogInt
     input.setBatchTransformation( wBatchTransformation.getText() );
     input.setBatchInputStep( wBatchInput.getText() );
     input.setBatchOutputStep( wBatchOutput.getText() );
+    input.setBatchMaxWaitTime( wMaxWaitTime.getText() );
 
     dispose();
   }

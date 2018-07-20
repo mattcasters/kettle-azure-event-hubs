@@ -52,6 +52,7 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
   public static final String BATCH_TRANSFORMATION = "batch_transformation";
   public static final String BATCH_INPUT_STEP = "batch_input_step";
   public static final String BATCH_OUTPUT_STEP = "batch_output_step";
+  public static final String BATCH_MAX_WAIT_TIME = "batch_max_wait_time";
 
   public static final String CONSUMER_GROUP_NAME = "consumer_group_name";
   public static final String EVENT_HUB_CONNECTION_STRING = "event_hub_connection_string";
@@ -81,6 +82,8 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
   private String batchTransformation;
   private String batchInputStep;
   private String batchOutputStep;
+  private String batchMaxWaitTime;
+
 
   public AzureListenerMeta() {
     super();
@@ -90,7 +93,7 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
     consumerGroupName = "$Default";
     outputField = "message";
     partitionIdField = "partitionId";
-    offsetField= "offset";
+    offsetField = "offset";
     sequenceNumberField = "sequenceNumber";
     hostField = "host";
     enquedTimeField = "enquedTime";
@@ -111,7 +114,7 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
   @Override public void getFields( RowMetaInterface rowMeta, String name, RowMetaInterface[] info, StepMeta nextStep, VariableSpace space,
                                    Repository repository, IMetaStore metaStore ) throws KettleStepException {
 
-    if (StringUtils.isNotEmpty( batchTransformation ) && StringUtils.isNotEmpty( batchInputStep )) {
+    if ( StringUtils.isNotEmpty( batchTransformation ) && StringUtils.isNotEmpty( batchInputStep ) ) {
       // Load the transformation, get the step output fields...
       //
       try {
@@ -120,60 +123,60 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
         rowMeta.clear();
         rowMeta.addRowMeta( stepFields );
         return;
-      } catch(Exception e) {
-        throw new KettleStepException( "Unable to get fields from batch transformation step "+batchOutputStep, e );
+      } catch ( Exception e ) {
+        throw new KettleStepException( "Unable to get fields from batch transformation step " + batchOutputStep, e );
       }
     }
 
-    getRegularRowMeta(rowMeta, space);
+    getRegularRowMeta( rowMeta, space );
   }
 
   public void getRegularRowMeta( RowMetaInterface rowMeta, VariableSpace space ) {
     // Output message field name
     //
     String outputFieldName = space.environmentSubstitute( outputField );
-    if (StringUtils.isNotEmpty(outputFieldName)) {
-      ValueMetaInterface outputValueMeta = new ValueMetaString(outputFieldName);
+    if ( StringUtils.isNotEmpty( outputFieldName ) ) {
+      ValueMetaInterface outputValueMeta = new ValueMetaString( outputFieldName );
       rowMeta.addValueMeta( outputValueMeta );
     }
 
     // The partition ID field name
     //
     String partitionIdFieldName = space.environmentSubstitute( partitionIdField );
-    if (StringUtils.isNotEmpty(partitionIdFieldName)) {
-      ValueMetaInterface outputValueMeta = new ValueMetaString(partitionIdFieldName);
+    if ( StringUtils.isNotEmpty( partitionIdFieldName ) ) {
+      ValueMetaInterface outputValueMeta = new ValueMetaString( partitionIdFieldName );
       rowMeta.addValueMeta( outputValueMeta );
     }
 
     // The offset field name
     //
     String offsetFieldName = space.environmentSubstitute( offsetField );
-    if (StringUtils.isNotEmpty(offsetFieldName)) {
-      ValueMetaInterface outputValueMeta = new ValueMetaString(offsetFieldName);
+    if ( StringUtils.isNotEmpty( offsetFieldName ) ) {
+      ValueMetaInterface outputValueMeta = new ValueMetaString( offsetFieldName );
       rowMeta.addValueMeta( outputValueMeta );
     }
 
     // The sequence number field name
     //
     String sequenceNumberFieldName = space.environmentSubstitute( sequenceNumberField );
-    if (StringUtils.isNotEmpty(sequenceNumberFieldName)) {
-      ValueMetaInterface outputValueMeta = new ValueMetaInteger(sequenceNumberFieldName);
+    if ( StringUtils.isNotEmpty( sequenceNumberFieldName ) ) {
+      ValueMetaInterface outputValueMeta = new ValueMetaInteger( sequenceNumberFieldName );
       rowMeta.addValueMeta( outputValueMeta );
     }
 
     // The host field name
     //
     String hostFieldName = space.environmentSubstitute( hostField );
-    if (StringUtils.isNotEmpty(hostFieldName)) {
-      ValueMetaInterface outputValueMeta = new ValueMetaString(hostFieldName);
+    if ( StringUtils.isNotEmpty( hostFieldName ) ) {
+      ValueMetaInterface outputValueMeta = new ValueMetaString( hostFieldName );
       rowMeta.addValueMeta( outputValueMeta );
     }
 
     // The enqued time field name
     //
     String enquedTimeFieldName = space.environmentSubstitute( enquedTimeField );
-    if (StringUtils.isNotEmpty(enquedTimeFieldName)) {
-      ValueMetaInterface outputValueMeta = new ValueMetaTimestamp(enquedTimeFieldName);
+    if ( StringUtils.isNotEmpty( enquedTimeFieldName ) ) {
+      ValueMetaInterface outputValueMeta = new ValueMetaTimestamp( enquedTimeFieldName );
       rowMeta.addValueMeta( outputValueMeta );
     }
   }
@@ -183,22 +186,23 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
     xml.append( XMLHandler.addTagValue( NAMESPACE, namespace ) );
     xml.append( XMLHandler.addTagValue( EVENT_HUB_NAME, eventHubName ) );
     xml.append( XMLHandler.addTagValue( SAS_KEY_NAME, sasKeyName ) );
-    xml.append( XMLHandler.addTagValue( SAS_KEY, Encr.encryptPasswordIfNotUsingVariables(sasKey) ) );
+    xml.append( XMLHandler.addTagValue( SAS_KEY, Encr.encryptPasswordIfNotUsingVariables( sasKey ) ) );
     xml.append( XMLHandler.addTagValue( BATCH_SIZE, batchSize ) );
-    xml.append( XMLHandler.addTagValue( PREFETCH_SIZE, prefetchSize) );
+    xml.append( XMLHandler.addTagValue( PREFETCH_SIZE, prefetchSize ) );
     xml.append( XMLHandler.addTagValue( OUTPUT_FIELD, outputField ) );
-    xml.append( XMLHandler.addTagValue( PARTITION_ID_FIELD, partitionIdField) );
+    xml.append( XMLHandler.addTagValue( PARTITION_ID_FIELD, partitionIdField ) );
     xml.append( XMLHandler.addTagValue( OFFSET_FIELD, offsetField ) );
-    xml.append( XMLHandler.addTagValue( SEQUENCE_NUMBER_FIELD, sequenceNumberField) );
+    xml.append( XMLHandler.addTagValue( SEQUENCE_NUMBER_FIELD, sequenceNumberField ) );
     xml.append( XMLHandler.addTagValue( HOST_FIELD, hostField ) );
-    xml.append( XMLHandler.addTagValue( ENQUED_TIME_FIELD, enquedTimeField) );
+    xml.append( XMLHandler.addTagValue( ENQUED_TIME_FIELD, enquedTimeField ) );
     xml.append( XMLHandler.addTagValue( CONSUMER_GROUP_NAME, consumerGroupName ) );
     xml.append( XMLHandler.addTagValue( EVENT_HUB_CONNECTION_STRING, eventHubConnectionString ) );
     xml.append( XMLHandler.addTagValue( STORAGE_CONNECTION_STRING, storageConnectionString ) );
-    xml.append( XMLHandler.addTagValue( STORAGE_CONTAINER_NAME, storageContainerName) );
-    xml.append( XMLHandler.addTagValue( BATCH_TRANSFORMATION, batchTransformation) );
-    xml.append( XMLHandler.addTagValue( BATCH_INPUT_STEP, batchInputStep) );
-    xml.append( XMLHandler.addTagValue( BATCH_OUTPUT_STEP, batchOutputStep) );
+    xml.append( XMLHandler.addTagValue( STORAGE_CONTAINER_NAME, storageContainerName ) );
+    xml.append( XMLHandler.addTagValue( BATCH_TRANSFORMATION, batchTransformation ) );
+    xml.append( XMLHandler.addTagValue( BATCH_INPUT_STEP, batchInputStep ) );
+    xml.append( XMLHandler.addTagValue( BATCH_OUTPUT_STEP, batchOutputStep ) );
+    xml.append( XMLHandler.addTagValue( BATCH_MAX_WAIT_TIME, batchMaxWaitTime ) );
 
     return xml.toString();
   }
@@ -209,20 +213,21 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
     sasKeyName = XMLHandler.getTagValue( stepnode, SAS_KEY_NAME );
     sasKey = Encr.decryptPasswordOptionallyEncrypted( XMLHandler.getTagValue( stepnode, SAS_KEY ) );
     batchSize = XMLHandler.getTagValue( stepnode, BATCH_SIZE );
-    prefetchSize = XMLHandler.getTagValue( stepnode, PREFETCH_SIZE);
+    prefetchSize = XMLHandler.getTagValue( stepnode, PREFETCH_SIZE );
     outputField = XMLHandler.getTagValue( stepnode, OUTPUT_FIELD );
-    partitionIdField = XMLHandler.getTagValue( stepnode, PARTITION_ID_FIELD);
+    partitionIdField = XMLHandler.getTagValue( stepnode, PARTITION_ID_FIELD );
     offsetField = XMLHandler.getTagValue( stepnode, OFFSET_FIELD );
-    sequenceNumberField = XMLHandler.getTagValue( stepnode, SEQUENCE_NUMBER_FIELD);
+    sequenceNumberField = XMLHandler.getTagValue( stepnode, SEQUENCE_NUMBER_FIELD );
     hostField = XMLHandler.getTagValue( stepnode, HOST_FIELD );
-    enquedTimeField = XMLHandler.getTagValue( stepnode, ENQUED_TIME_FIELD);
-    consumerGroupName = XMLHandler.getTagValue( stepnode, CONSUMER_GROUP_NAME);
-    eventHubConnectionString = XMLHandler.getTagValue( stepnode, EVENT_HUB_CONNECTION_STRING);
-    storageConnectionString = XMLHandler.getTagValue( stepnode, STORAGE_CONNECTION_STRING);
+    enquedTimeField = XMLHandler.getTagValue( stepnode, ENQUED_TIME_FIELD );
+    consumerGroupName = XMLHandler.getTagValue( stepnode, CONSUMER_GROUP_NAME );
+    eventHubConnectionString = XMLHandler.getTagValue( stepnode, EVENT_HUB_CONNECTION_STRING );
+    storageConnectionString = XMLHandler.getTagValue( stepnode, STORAGE_CONNECTION_STRING );
     storageContainerName = XMLHandler.getTagValue( stepnode, STORAGE_CONTAINER_NAME );
     batchTransformation = XMLHandler.getTagValue( stepnode, BATCH_TRANSFORMATION );
     batchInputStep = XMLHandler.getTagValue( stepnode, BATCH_INPUT_STEP );
-    batchOutputStep = XMLHandler.getTagValue( stepnode, BATCH_OUTPUT_STEP);
+    batchOutputStep = XMLHandler.getTagValue( stepnode, BATCH_OUTPUT_STEP );
+    batchMaxWaitTime = XMLHandler.getTagValue( stepnode, BATCH_MAX_WAIT_TIME );
     super.loadXML( stepnode, databases, metaStore );
   }
 
@@ -230,22 +235,23 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
     rep.saveStepAttribute( id_transformation, id_step, NAMESPACE, namespace );
     rep.saveStepAttribute( id_transformation, id_step, EVENT_HUB_NAME, eventHubName );
     rep.saveStepAttribute( id_transformation, id_step, SAS_KEY_NAME, sasKeyName );
-    rep.saveStepAttribute( id_transformation, id_step, SAS_KEY, Encr.encryptPasswordIfNotUsingVariables(sasKey) );
+    rep.saveStepAttribute( id_transformation, id_step, SAS_KEY, Encr.encryptPasswordIfNotUsingVariables( sasKey ) );
     rep.saveStepAttribute( id_transformation, id_step, BATCH_SIZE, batchSize );
-    rep.saveStepAttribute( id_transformation, id_step, PREFETCH_SIZE, prefetchSize);
+    rep.saveStepAttribute( id_transformation, id_step, PREFETCH_SIZE, prefetchSize );
     rep.saveStepAttribute( id_transformation, id_step, OUTPUT_FIELD, outputField );
-    rep.saveStepAttribute( id_transformation, id_step, PARTITION_ID_FIELD, partitionIdField);
-    rep.saveStepAttribute( id_transformation, id_step, OFFSET_FIELD, offsetField);
-    rep.saveStepAttribute( id_transformation, id_step, SEQUENCE_NUMBER_FIELD, sequenceNumberField);
-    rep.saveStepAttribute( id_transformation, id_step, HOST_FIELD, hostField);
-    rep.saveStepAttribute( id_transformation, id_step, ENQUED_TIME_FIELD, enquedTimeField);
-    rep.saveStepAttribute( id_transformation, id_step, CONSUMER_GROUP_NAME, consumerGroupName);
-    rep.saveStepAttribute( id_transformation, id_step, EVENT_HUB_CONNECTION_STRING, eventHubConnectionString);
-    rep.saveStepAttribute( id_transformation, id_step, STORAGE_CONNECTION_STRING, storageConnectionString);
+    rep.saveStepAttribute( id_transformation, id_step, PARTITION_ID_FIELD, partitionIdField );
+    rep.saveStepAttribute( id_transformation, id_step, OFFSET_FIELD, offsetField );
+    rep.saveStepAttribute( id_transformation, id_step, SEQUENCE_NUMBER_FIELD, sequenceNumberField );
+    rep.saveStepAttribute( id_transformation, id_step, HOST_FIELD, hostField );
+    rep.saveStepAttribute( id_transformation, id_step, ENQUED_TIME_FIELD, enquedTimeField );
+    rep.saveStepAttribute( id_transformation, id_step, CONSUMER_GROUP_NAME, consumerGroupName );
+    rep.saveStepAttribute( id_transformation, id_step, EVENT_HUB_CONNECTION_STRING, eventHubConnectionString );
+    rep.saveStepAttribute( id_transformation, id_step, STORAGE_CONNECTION_STRING, storageConnectionString );
     rep.saveStepAttribute( id_transformation, id_step, STORAGE_CONTAINER_NAME, storageContainerName );
-    rep.saveStepAttribute( id_transformation, id_step, BATCH_TRANSFORMATION, batchTransformation);
-    rep.saveStepAttribute( id_transformation, id_step, BATCH_INPUT_STEP, batchInputStep);
-    rep.saveStepAttribute( id_transformation, id_step, BATCH_OUTPUT_STEP, batchOutputStep);
+    rep.saveStepAttribute( id_transformation, id_step, BATCH_TRANSFORMATION, batchTransformation );
+    rep.saveStepAttribute( id_transformation, id_step, BATCH_INPUT_STEP, batchInputStep );
+    rep.saveStepAttribute( id_transformation, id_step, BATCH_OUTPUT_STEP, batchOutputStep );
+    rep.saveStepAttribute( id_transformation, id_step, BATCH_MAX_WAIT_TIME, batchMaxWaitTime );
   }
 
   @Override public void readRep( Repository rep, IMetaStore metaStore, ObjectId id_step, List<DatabaseMeta> databases ) throws KettleException {
@@ -254,20 +260,21 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
     sasKeyName = rep.getStepAttributeString( id_step, SAS_KEY_NAME );
     sasKey = Encr.decryptPasswordOptionallyEncrypted( rep.getStepAttributeString( id_step, SAS_KEY ) );
     batchSize = rep.getStepAttributeString( id_step, BATCH_SIZE );
-    prefetchSize = rep.getStepAttributeString( id_step, PREFETCH_SIZE);
+    prefetchSize = rep.getStepAttributeString( id_step, PREFETCH_SIZE );
     outputField = rep.getStepAttributeString( id_step, OUTPUT_FIELD );
-    partitionIdField = rep.getStepAttributeString( id_step, PARTITION_ID_FIELD);
+    partitionIdField = rep.getStepAttributeString( id_step, PARTITION_ID_FIELD );
     offsetField = rep.getStepAttributeString( id_step, OFFSET_FIELD );
-    sequenceNumberField = rep.getStepAttributeString( id_step, SEQUENCE_NUMBER_FIELD);
+    sequenceNumberField = rep.getStepAttributeString( id_step, SEQUENCE_NUMBER_FIELD );
     hostField = rep.getStepAttributeString( id_step, HOST_FIELD );
-    enquedTimeField = rep.getStepAttributeString( id_step, ENQUED_TIME_FIELD);
-    consumerGroupName = rep.getStepAttributeString( id_step, CONSUMER_GROUP_NAME);
-    eventHubConnectionString = rep.getStepAttributeString( id_step, EVENT_HUB_CONNECTION_STRING);
-    storageConnectionString = rep.getStepAttributeString( id_step, STORAGE_CONNECTION_STRING);
+    enquedTimeField = rep.getStepAttributeString( id_step, ENQUED_TIME_FIELD );
+    consumerGroupName = rep.getStepAttributeString( id_step, CONSUMER_GROUP_NAME );
+    eventHubConnectionString = rep.getStepAttributeString( id_step, EVENT_HUB_CONNECTION_STRING );
+    storageConnectionString = rep.getStepAttributeString( id_step, STORAGE_CONNECTION_STRING );
     storageContainerName = rep.getStepAttributeString( id_step, STORAGE_CONTAINER_NAME );
     batchTransformation = rep.getStepAttributeString( id_step, BATCH_TRANSFORMATION );
     batchInputStep = rep.getStepAttributeString( id_step, BATCH_INPUT_STEP );
-    batchOutputStep = rep.getStepAttributeString( id_step, BATCH_OUTPUT_STEP);
+    batchOutputStep = rep.getStepAttributeString( id_step, BATCH_OUTPUT_STEP );
+    batchMaxWaitTime = rep.getStepAttributeString( id_step, BATCH_MAX_WAIT_TIME );
   }
 
   public static final synchronized TransMeta loadBatchTransMeta(
@@ -465,5 +472,13 @@ public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface
 
   public void setBatchOutputStep( String batchOutputStep ) {
     this.batchOutputStep = batchOutputStep;
+  }
+
+  public String getBatchMaxWaitTime() {
+    return batchMaxWaitTime;
+  }
+
+  public void setBatchMaxWaitTime( String batchMaxWaitTime ) {
+    this.batchMaxWaitTime = batchMaxWaitTime;
   }
 }

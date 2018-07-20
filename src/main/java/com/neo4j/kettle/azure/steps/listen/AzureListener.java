@@ -1,25 +1,17 @@
 package com.neo4j.kettle.azure.steps.listen;
 
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.microsoft.azure.eventhubs.ConnectionStringBuilder;
 import com.microsoft.azure.eventhubs.EventHubClient;
-import com.microsoft.azure.eventhubs.EventHubException;
 import com.microsoft.azure.eventprocessorhost.EventProcessorHost;
 import com.microsoft.azure.eventprocessorhost.EventProcessorOptions;
-import com.microsoft.azure.eventprocessorhost.IEventProcessor;
-import com.microsoft.azure.eventprocessorhost.IEventProcessorFactory;
-import com.microsoft.azure.eventprocessorhost.PartitionContext;
 import com.neo4j.kettle.azure.ErrorNotificationHandler;
-import com.neo4j.kettle.azure.EventProcessor;
 import org.apache.commons.lang.StringUtils;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.exception.KettleStepException;
 import org.pentaho.di.core.row.RowMeta;
 import org.pentaho.di.core.row.RowMetaInterface;
-import org.pentaho.di.trans.RowProducer;
 import org.pentaho.di.trans.SingleThreadedTransExecutor;
 import org.pentaho.di.trans.Trans;
 import org.pentaho.di.trans.TransMeta;
@@ -30,10 +22,9 @@ import org.pentaho.di.trans.step.StepInterface;
 import org.pentaho.di.trans.step.StepMeta;
 import org.pentaho.di.trans.step.StepMetaInterface;
 
-import java.io.IOException;
 import java.util.LinkedList;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.Executors;
 
 public class AzureListener extends BaseStep implements StepInterface {
@@ -105,6 +96,7 @@ public class AzureListener extends BaseStep implements StepInterface {
     if (StringUtils.isNotEmpty( batchTransformationFile ) && StringUtils.isNotEmpty( batchInputStep )) {
       logBasic( "Passing rows to a batching transformation running single threaded : " +batchTransformationFile);
       data.stt = true;
+      data.sttMaxWaitTime = Const.toLong( environmentSubstitute( meta.getBatchMaxWaitTime() ), -1L);
       data.sttTransMeta = meta.loadBatchTransMeta( meta, repository, metaStore, this );
       data.sttTransMeta.setTransformationType( TransMeta.TransformationType.SingleThreaded );
       data.sttTrans = new Trans( data.sttTransMeta, this );
@@ -186,13 +178,60 @@ public class AzureListener extends BaseStep implements StepInterface {
       throw new KettleStepException( "Unable to create event hub client", e );
     }
 
-    /*
-    try {
-      host.registerEventProcessor(AzureListenerEventProcessor.class, options)
-    */
+    // Create our event processor which is going to actually send rows to the batch transformation (or not)
+    // and get rows from an optional output step.
+    //
+    final AzureListenerEventProcessor eventProcessor = new AzureListenerEventProcessor( AzureListener.this, data, data.batchSize );
+
+    // In case we have a while since an iteration was done sending rows to the batch transformation, keep an eye out for the
+    // maximum wait time.  If we go over that time, and we have records in the input of the batch, call oneIteration.
+    // We need to make sure to halt the rest though.
+    //
+    if (data.stt && data.sttMaxWaitTime>0) {
+      // Add a timer to check every max wait time to see whether or not we have to do an iteration...
+      //
+      logBasic( "Checking for stalled rows every 100ms to see if we exceed the maximum wait time: " +data.sttMaxWaitTime );
+      try {
+        Timer timer = new Timer();
+        TimerTask timerTask = new TimerTask() {
+          @Override public void run() {
+            // Do nothing if we haven't started yet.
+            //
+            if ( eventProcessor.getLastIterationTime() > 0 ) {
+              if ( eventProcessor.getPassedRowsCount() > 0 ) {
+                long now = System.currentTimeMillis();
+
+                long diff = now - eventProcessor.getLastIterationTime();
+                if ( diff > data.sttMaxWaitTime ) {
+                  logDetailed( "Stalled rows detected with wait time of "+((double)diff/1000) );
+
+                  // Call one iteration but halt anything else first.
+                  //
+                  try {
+                    eventProcessor.startWait();
+                    eventProcessor.doOneIteration();
+                  } catch(Exception e) {
+                    throw new RuntimeException( "Error in batch iteration when max wait time was exceeded", e);
+                  } finally {
+                    eventProcessor.endWait();
+                  }
+                  logDetailed( "Done processing after max wait time.");
+
+                }
+              }
+            }
+          }
+        };
+        // Check ten times per second
+        //
+        timer.schedule( timerTask, 100, 100);
+      } catch(RuntimeException e) {
+        throw new KettleStepException( "Error in batch iteration when max wait time was exceeded", e);
+      }
+    }
 
     try{
-      host.registerEventProcessorFactory( partitionContext -> new AzureListenerEventProcessor( AzureListener.this, data, data.batchSize ) )
+      host.registerEventProcessorFactory( partitionContext -> eventProcessor )
          .whenComplete((unused, e) -> {
           // whenComplete passes the result of the previous stage through unchanged,
           // which makes it useful for logging a result without side effects.
@@ -241,6 +280,7 @@ public class AzureListener extends BaseStep implements StepInterface {
           return null;
         })
         .get(); // Wait for everything to finish before exiting main!
+
     } catch ( Exception e ) {
       throw new KettleException( "Error in event processor", e );
     }

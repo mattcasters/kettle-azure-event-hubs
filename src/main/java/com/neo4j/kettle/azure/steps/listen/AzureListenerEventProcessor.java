@@ -10,19 +10,31 @@ import org.pentaho.di.core.row.RowDataUtil;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AzureListenerEventProcessor implements IEventProcessor {
 
   private final AzureListener azureStep;
   private final AzureListenerData azureData;
 
-  private int checkpointBatchingSize = 500;
-  private int checkpointBatchingCount = 0;
+  private int checkpointBatchingSize;
+  private int checkpointBatchingCount;
+
+  private long lastIterationTime = -1;
+
+  private long passedRowsCount;
+
+  private AtomicBoolean wait = new AtomicBoolean( false );
+
+  private PartitionContext lastContext;
+  private EventData lastData;
 
   public AzureListenerEventProcessor( AzureListener step, AzureListenerData data, int checkpointBatchingSize ) {
     this.azureStep = step;
     this.azureData = data;
     this.checkpointBatchingSize = checkpointBatchingSize;
+
+    passedRowsCount =0L;
   }
 
   // OnOpen is called when a new event processor instance is created by the host. In a real implementation, this
@@ -30,7 +42,7 @@ public class AzureListenerEventProcessor implements IEventProcessor {
   // connection.
   //
   @Override
-  public void onOpen( PartitionContext context ) throws Exception {
+  public void onOpen( PartitionContext context ) {
     if (azureStep.isDebug()) {
       azureStep.logDebug( "Partition " + context.getPartitionId() + " is opening" );
     }
@@ -41,7 +53,7 @@ public class AzureListenerEventProcessor implements IEventProcessor {
   // this is the place to do cleanup for resources that were opened in onOpen.
   //
   @Override
-  public void onClose( PartitionContext context, CloseReason reason ) throws Exception {
+  public void onClose( PartitionContext context, CloseReason reason ) {
     if (azureStep.isDebug()) {
       azureStep.logDebug( "Partition " + context.getPartitionId() + " is closing for reason " + reason.toString() );
     }
@@ -63,12 +75,25 @@ public class AzureListenerEventProcessor implements IEventProcessor {
   //
   @Override
   public void onEvents( PartitionContext context, Iterable<EventData> events ) throws Exception {
+
+    // First time calibration time
+    //
+    if (lastIterationTime<0) {
+      lastIterationTime = System.currentTimeMillis();
+    }
+
+    // See if we're not doing an iteration in the max wait time timer task...
+    //
+    while (wait.get() && !azureStep.isStopped()) {
+      Thread.sleep( 10 );
+    }
+
     int eventCount = 0;
     for ( EventData data : events ) {
+
       // It is important to have a try-catch around the processing of each event. Throwing out of onEvents deprives
       // you of the chance to process any remaining events in the batch.
       //
-
       azureStep.incrementLinesInput();
 
       try {
@@ -115,6 +140,9 @@ public class AzureListenerEventProcessor implements IEventProcessor {
 
         if (azureData.stt) {
           azureData.sttRowProducer.putRow( azureData.outputRowMeta, row );
+          passedRowsCount++;
+          lastContext = context;
+          lastData = data;
         } else {
           // Just pass the row along, row safety is not of primary concern
           //
@@ -123,7 +151,7 @@ public class AzureListenerEventProcessor implements IEventProcessor {
 
         if (azureStep.isDebug()) {
           azureStep.logDebug("Event read and passed for PartitionId (" + context.getPartitionId() + "," + data.getSystemProperties().getOffset() + "," +
-            data.getSystemProperties().getSequenceNumber() + "): " + new String( data.getBytes(), "UTF8" ) );
+            data.getSystemProperties().getSequenceNumber() + "): " + new String( data.getBytes(), "UTF8" ) +" ("+index+" values in row)" );
         }
 
         eventCount++;
@@ -147,24 +175,16 @@ public class AzureListenerEventProcessor implements IEventProcessor {
             if (azureStep.isDetailed()) {
               azureStep.logDetailed( "Processing the rows sent to the batch transformation at event count " + checkpointBatchingCount );
             }
-            azureData.sttExecutor.oneIteration();
 
-            if ( azureData.sttExecutor.isStopped() || azureData.sttExecutor.getErrors() > 0 ) {
-              // Something went wrong, bail out, don't do checkpoint
-              //
-              azureData.sttTrans.stopAll();
-              azureStep.setErrors(1);
-              azureStep.setStopped( true );
-              azureStep.stopAll();
-
-              throw new KettleException( "Error in batch transformation, halting");
-            }
+            doOneIteration();
+          } else {
+            // Checkpoints are created asynchronously. It is important to wait for the result of checkpointing
+            // before exiting onEvents or before creating the next checkpoint, to detect errors and to ensure proper ordering.
+            //
+            context.checkpoint( data ).get();
           }
 
-          // Checkpoints are created asynchronously. It is important to wait for the result of checkpointing
-          // before exiting onEvents or before creating the next checkpoint, to detect errors and to ensure proper ordering.
-          //
-          context.checkpoint( data ).get();
+
         }
       } catch ( Exception e ) {
         azureStep.logError( "Processing failed for an event: " + e.toString(), e );
@@ -174,6 +194,36 @@ public class AzureListenerEventProcessor implements IEventProcessor {
     }
     if (azureStep.isDebug()) {
       azureStep.logDebug( "Partition " + context.getPartitionId() + " batch size was " + eventCount + " for host " + context.getOwner() );
+    }
+  }
+
+  public synchronized void doOneIteration() throws KettleException {
+    azureData.sttExecutor.oneIteration();
+
+    passedRowsCount =0;
+
+    // Keep track of when we last did an iteration.
+    //
+    lastIterationTime = System.currentTimeMillis();
+
+    if ( azureData.sttExecutor.isStopped() || azureData.sttExecutor.getErrors() > 0 ) {
+      // Something went wrong, bail out, don't do checkpoint
+      //
+      azureData.sttTrans.stopAll();
+      azureStep.setErrors(1);
+      azureStep.setStopped( true );
+      azureStep.stopAll();
+
+      throw new KettleException( "Error in batch transformation, halting");
+    }
+
+    // Checkpoints are created asynchronously. It is important to wait for the result of checkpointing
+    // before exiting onEvents or before creating the next checkpoint, to detect errors and to ensure proper ordering.
+    //
+    try {
+      lastContext.checkpoint( lastData ).get();
+    } catch ( Exception e ) {
+      throw new KettleException( "Failed to do checkpoint", e );
     }
   }
 
@@ -201,4 +251,29 @@ public class AzureListenerEventProcessor implements IEventProcessor {
   public AzureListenerData getAzureData() {
     return azureData;
   }
+
+  public long getLastIterationTime() {
+    return lastIterationTime;
+  }
+
+  public void setLastIterationTime( long lastIterationTime ) {
+    this.lastIterationTime = lastIterationTime;
+  }
+
+  public long getPassedRowsCount() {
+    return passedRowsCount;
+  }
+
+  public void setPassedRowsCount( long passedRowsCount ) {
+    this.passedRowsCount = passedRowsCount;
+  }
+
+  public void startWait() {
+    wait.set( true );
+  }
+
+  public void endWait() {
+    wait.set( false );
+  }
+
 }
