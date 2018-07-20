@@ -5,7 +5,6 @@ import com.microsoft.azure.eventhubs.ConnectionStringBuilder;
 import com.microsoft.azure.eventhubs.EventHubClient;
 import com.microsoft.azure.eventprocessorhost.EventProcessorHost;
 import com.microsoft.azure.eventprocessorhost.EventProcessorOptions;
-import com.neo4j.kettle.azure.ErrorNotificationHandler;
 import org.apache.commons.lang.StringUtils;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.exception.KettleException;
@@ -102,6 +101,10 @@ public class AzureListener extends BaseStep implements StepInterface {
       data.sttTrans = new Trans( data.sttTransMeta, this );
       data.sttTrans.setParent( getTrans() );
 
+      // Leave a trace for Spoon...
+      //
+      getTrans().addActiveSubTransformation( getStepname(), data.sttTrans );
+
       data.sttTrans.prepareExecution( getTrans().getArguments() );
 
       data.sttRowProducer = data.sttTrans.addRowProducer( batchInputStep, 0 );
@@ -161,7 +164,7 @@ public class AzureListener extends BaseStep implements StepInterface {
     log.logDetailed("Registering host named " + host.getHostName());
 
     EventProcessorOptions options = new EventProcessorOptions();
-    options.setExceptionNotification(new ErrorNotificationHandler());
+    options.setExceptionNotification(new AzureListenerErrorNotificationHandler( AzureListener.this ));
 
     if (!StringUtils.isNotEmpty(meta.getBatchSize())) {
       options.setMaxBatchSize( Const.toInt( environmentSubstitute( meta.getBatchSize() ), 100 ) );
