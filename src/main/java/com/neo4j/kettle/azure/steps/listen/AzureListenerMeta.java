@@ -33,7 +33,8 @@ import java.util.List;
   name = "Microsoft Azure Event Hubs Listener",
   description = "Listen to a Microsoft Azure Event Hub and read from it",
   image = "azure.svg",
-  categoryDescription = "Streaming"
+  categoryDescription = "Streaming",
+  documentationUrl = "https://github.com/mattcasters/kettle-azure-event-hubs/wiki/Microsoft-Azure-Event-Hubs-Listener"
 )
 public class AzureListenerMeta extends BaseStepMeta implements StepMetaInterface {
 

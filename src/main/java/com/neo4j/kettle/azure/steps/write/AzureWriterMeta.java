@@ -28,7 +28,8 @@ import java.util.List;
   name = "Microsoft Azure Event Hubs Writer",
   description = "Write data to a Microsoft Azure Event Hub",
   image = "azure_writer.svg",
-  categoryDescription = "Streaming"
+  categoryDescription = "Streaming",
+  documentationUrl = "https://github.com/mattcasters/kettle-azure-event-hubs/wiki/Microsoft-Azure-Event-Hubs-Writer"
 )
 public class AzureWriterMeta extends BaseStepMeta implements StepMetaInterface {
 
@@ -38,7 +39,6 @@ public class AzureWriterMeta extends BaseStepMeta implements StepMetaInterface {
   public static final String SAS_KEY = "sas_key";
   public static final String BATCH_SIZE = "batch_size";
   public static final String MESSAGE_FIELD = "message_field";
-
 
   private String namespace;
   private String eventHubName;
